@@ -2,23 +2,25 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+import os
 
 from analyzer.signals import detect_signals, calculate_indicators
 from analyzer.plotting import plot_stock_with_signals
 from analyzer.data import get_stock_data
-# Import the groups you just defined
-from analyzer.tickers import TICKER_GROUPS, TICKER_NAMES 
+from analyzer.tickers import TICKER_GROUPS, TICKER_NAMES
 
 app = FastAPI()
-templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# ✅ Use absolute paths for Render compatibility
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     charts, signals_by_sector, sector_summary = {}, {}, {}
 
-    # Use TICKER_GROUPS from the import
-    for sector, tickers in TICKER_GROUPS.items(): 
+    for sector, tickers in TICKER_GROUPS.items():
         charts[sector], signals_by_sector[sector], sector_summary[sector] = [], {}, []
         for ticker in tickers:
             try:
@@ -46,12 +48,12 @@ async def index(request: Request):
                 print(f"Skipping {ticker}: {e}")
 
     return templates.TemplateResponse(
-    "index.html",
-    {
-        "request": request,
-        "charts": charts,
-        "signals": signals_by_sector,
-        "summary": sector_summary,
-        "ticker_names": TICKER_NAMES
-    }
-)
+        "index.html",
+        {
+            "request": request,
+            "charts": charts,
+            "signals": signals_by_sector,
+            "summary": sector_summary,
+            "ticker_names": TICKER_NAMES
+        }
+    )
