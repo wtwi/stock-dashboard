@@ -3,49 +3,78 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 import os
+import asyncio
 
 from analyzer.signals import detect_signals, calculate_indicators
 from analyzer.plotting import plot_stock_with_signals
-from analyzer.data import get_stock_data
+from analyzer.data import get_stock_data_cached
 from analyzer.tickers import TICKER_GROUPS, TICKER_NAMES
 
 app = FastAPI()
 
-# Absolute paths for Render
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
+
+async def process_ticker(ticker):
+    """Process a single ticker asynchronously."""
+    try:
+        df = get_stock_data_cached(ticker)
+        if df is None or df.empty:
+            return None
+
+        df = calculate_indicators(df)
+        signals = detect_signals(df)
+        chart_file = plot_stock_with_signals(df, signals, ticker)
+
+        last_signal = signals[-1] if signals else None
+
+        return {
+            "ticker": ticker,
+            "chart": chart_file,
+            "signals": signals,
+            "summary": {
+                "ticker": ticker,
+                "action": last_signal["action"] if last_signal else None,
+                "type": last_signal["type"] if last_signal else None,
+                "date": last_signal["date"].strftime("%Y-%m-%d") if last_signal else None,
+                "price": f"{last_signal['price']:.2f}" if last_signal else None,
+            } if last_signal else None
+        }
+
+    except Exception as e:
+        print(f"Skipping {ticker}: {e}")
+        return None
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    charts, signals_by_sector, sector_summary = {}, {}, {}
+    charts = {}
+    signals_by_sector = {}
+    sector_summary = {}
 
     for sector, tickers in TICKER_GROUPS.items():
-        charts[sector], signals_by_sector[sector], sector_summary[sector] = [], {}, []
-        for ticker in tickers:
-            try:
-                df = get_stock_data(ticker)
-                if df is None or df.empty:
-                    continue
+        tasks = [process_ticker(t) for t in tickers]
+        results = await asyncio.gather(*tasks)
 
-                df = calculate_indicators(df)
-                signals = detect_signals(df)
-                chart_file = plot_stock_with_signals(df, signals, ticker)
+        charts[sector] = []
+        signals_by_sector[sector] = {}
+        sector_summary[sector] = []
 
-                charts[sector].append({"ticker": ticker, "chart": chart_file})
-                signals_by_sector[sector][ticker] = signals
+        for result in results:
+            if not result:
+                continue
 
-                if signals:
-                    last_signal = signals[-1]
-                    sector_summary[sector].append({
-                        "ticker": ticker,
-                        "action": last_signal["action"],
-                        "type": last_signal["type"],
-                        "date": last_signal["date"].strftime("%Y-%m-%d"),
-                        "price": f"{last_signal['price']:.2f}"
-                    })
-            except Exception as e:
-                print(f"Skipping {ticker}: {e}")
+            charts[sector].append({
+                "ticker": result["ticker"],
+                "chart": result["chart"]
+            })
+
+            signals_by_sector[sector][result["ticker"]] = result["signals"]
+
+            if result["summary"]:
+                sector_summary[sector].append(result["summary"])
 
     return templates.TemplateResponse(
         "index.html",
