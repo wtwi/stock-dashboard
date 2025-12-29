@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 fastapi
 uvicorn
 yfinance
@@ -6,3 +7,13 @@ numpy
 matplotlib
 jinja2
 python-multipart
+=======
+fastapi
+uvicorn
+yfinance
+pandas
+numpy
+matplotlib
+jinja2
+python-multipart
+>>>>>>> 28c2ef6ef5529dccf4d660e68dbd01b5e0aa2e3d
