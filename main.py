@@ -116,4 +116,3 @@ async def index(request: Request):
         "ticker_names": TICKER_NAMES
     }
 )
->>>>>>> 28c2ef6ef5529dccf4d660e68dbd01b5e0aa2e3d
