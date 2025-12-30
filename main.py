@@ -5,7 +5,9 @@ from fastapi.staticfiles import StaticFiles
 import os
 import asyncio
 
-from analyzer.signals import detect_signals, calculate_indicators
+from analyzer.signals import detect_signals
+from analyzer.indicators import calculate_indicators
+
 from analyzer.plotting import plot_stock_with_signals
 from analyzer.data import get_stock_data_cached
 from analyzer.tickers import TICKER_GROUPS, TICKER_NAMES
@@ -18,7 +20,6 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), na
 
 
 async def process_ticker(ticker):
-    """Process a single ticker asynchronously."""
     try:
         df = get_stock_data_cached(ticker)
         if df is None or df.empty:
@@ -36,10 +37,10 @@ async def process_ticker(ticker):
             "signals": signals,
             "summary": {
                 "ticker": ticker,
-                "action": last_signal["action"] if last_signal else None,
-                "type": last_signal["type"] if last_signal else None,
-                "date": last_signal["date"].strftime("%Y-%m-%d") if last_signal else None,
-                "price": f"{last_signal['price']:.2f}" if last_signal else None,
+                "action": last_signal["action"],
+                "type": last_signal["type"],
+                "date": last_signal["date"].strftime("%Y-%m-%d"),
+                "price": f"{float(last_signal['price']):.2f}",
             } if last_signal else None
         }
 

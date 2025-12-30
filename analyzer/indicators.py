@@ -56,3 +56,30 @@ def add_volume_ma(df: pd.DataFrame, period: int = 20) -> pd.DataFrame:
     if "Volume" in df.columns:
         df["Volume_MA"] = df["Volume"].rolling(period).mean()
     return df
+
+
+# ---------------------------------------------------------
+# NEW: The orchestrator function main.py expects
+# ---------------------------------------------------------
+
+def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+
+    # Ensure Date column exists
+    if "Date" not in df.columns:
+        df["Date"] = df.index
+
+    # Ensure OHLC columns are 1D floats
+    for col in ["Open", "High", "Low", "Close"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Apply all indicator helpers
+    df = add_moving_averages(df, fast=20, medium=50, slow=200)
+    df = add_bollinger_bands(df, period=20, num_std=2.0)
+    df = add_rsi(df, period=14)
+    df = add_macd(df, fast=12, slow=26, signal=9)
+    df = add_atr(df, period=14)
+    df = add_volume_ma(df, period=20)
+
+    return df
