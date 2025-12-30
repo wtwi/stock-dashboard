@@ -7,7 +7,6 @@ import asyncio
 
 from analyzer.signals import detect_signals
 from analyzer.indicators import calculate_indicators
-
 from analyzer.plotting import plot_stock_with_signals
 from analyzer.data import get_stock_data_cached
 from analyzer.tickers import TICKER_GROUPS, TICKER_NAMES
@@ -19,29 +18,43 @@ templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
 
-async def process_ticker(ticker):
+async def process_ticker(ticker: str):
     try:
         df = get_stock_data_cached(ticker)
         if df is None or df.empty:
             return None
 
+        # Indicators + signals
         df = calculate_indicators(df)
         signals = detect_signals(df)
+
+        # Chart
         chart_file = plot_stock_with_signals(df, signals, ticker)
 
-        last_signal = signals[-1] if signals else None
+        # Always include a summary row
+        last_price = float(df["Close"].iloc[-1])
+        summary = {
+            "ticker": ticker,
+            "price": f"{last_price:.2f}",
+            "target": f"{last_price * 1.1:.2f}",  # fallback target
+        }
+
+        # If signals exist, override with last signal info
+        if signals:
+            last_signal = signals[-1]
+            summary.update({
+                "price": f"{float(last_signal['price']):.2f}",
+                "target": f"{float(last_signal['target']):.2f}",
+                "action": last_signal["action"],
+                "type": last_signal["type"],
+                "date": last_signal["date"].strftime("%Y-%m-%d"),
+            })
 
         return {
             "ticker": ticker,
             "chart": chart_file,
             "signals": signals,
-            "summary": {
-                "ticker": ticker,
-                "action": last_signal["action"],
-                "type": last_signal["type"],
-                "date": last_signal["date"].strftime("%Y-%m-%d"),
-                "price": f"{float(last_signal['price']):.2f}",
-            } if last_signal else None
+            "summary": summary,
         }
 
     except Exception as e:
